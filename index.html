@@ -278,6 +278,8 @@
   }
 
   .text-item.edited {
+    color: #1A1D2E;
+    background: white;
     border-bottom: 2px solid var(--accent);
   }
 
@@ -692,13 +694,44 @@ function finishEditing(span) {
     editCount++;
     updateStats();
 
-    // Recalculate width scaling
+    // White out original text on canvas and recalculate width
+    whiteOutOriginalText(span, pageIdx, itemIdx);
     recalcSpanWidth(span, pageIdx, itemIdx);
   } else {
     editedItems.delete(key);
     span.classList.remove('edited');
     recalcSpanWidth(span, pageIdx, itemIdx);
   }
+}
+
+function whiteOutOriginalText(span, pageIdx, itemIdx) {
+  // Paint a white rectangle on the canvas to cover the original text
+  const container = document.querySelectorAll('.pdf-page-container')[pageIdx];
+  if (!container) return;
+  const canvas = container.querySelector('canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const item = pagesData[pageIdx].textItems[itemIdx];
+  const cssVp = pagesData[pageIdx].cssViewport;
+  const renderVp = pagesData[pageIdx].viewport;
+
+  // Get span position in CSS viewport coords
+  const tx = pdfjsLib.Util.transform(cssVp.transform, item.transform);
+  const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+  const x = tx[4];
+  const y = tx[5] - fontHeight;
+  const w = item.width * CSS_SCALE;
+  const h = fontHeight;
+
+  // Scale from CSS coords to canvas (render) coords
+  const scaleX = renderVp.width / cssVp.width;
+  const scaleY = renderVp.height / cssVp.height;
+
+  // Paint with a small padding to fully cover
+  const pad = 2 * scaleX;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(x * scaleX - pad, y * scaleY - pad, w * scaleX + pad * 2, h * scaleY + pad * 2);
 }
 
 function recalcSpanWidth(span, pageIdx, itemIdx) {
@@ -786,6 +819,7 @@ function replaceCurrent() {
   editedItems.set(`${pageIdx}-${itemIdx}`, span.textContent);
   span.classList.add('edited');
   editCount++;
+  whiteOutOriginalText(span, pageIdx, itemIdx);
   recalcSpanWidth(span, pageIdx, itemIdx);
   updateStats();
   performSearch();
@@ -806,6 +840,7 @@ function replaceAll() {
     const itemIdx = parseInt(span.dataset.item);
     editedItems.set(`${pageIdx}-${itemIdx}`, span.textContent);
     span.classList.add('edited');
+    whiteOutOriginalText(span, pageIdx, itemIdx);
     recalcSpanWidth(span, pageIdx, itemIdx);
   });
 
